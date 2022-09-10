@@ -108,7 +108,6 @@ final class DefaultBotHandlers {
         commandWhereToBuyHandler(app: app, bot: bot)
         commandStartTradingHandler(app: app, bot: bot)
         commandStartArbitragingHandler(app: app, bot: bot)
-        commandStartTriangularArbitragingHandler(app: app, bot: bot)
         commandStartAlertingHandler(app: app, bot: bot)
         commandStartLoggingHandler(app: app, bot: bot)
         commandStopHandler(app: app, bot: bot)
@@ -116,7 +115,6 @@ final class DefaultBotHandlers {
         
         startTradingJob(bot: bot)
         startArbitragingMonitoring(bot: bot)
-        startTriangularArbitragingMonitoring(bot: bot)
         startAlertingJob(bot: bot)
         startLoggingJob(bot: bot)
     }
@@ -191,52 +189,6 @@ final class DefaultBotHandlers {
                             _ = try bot.editMessageText(params: editParams)
                         } else {
                             _ = try bot.sendMessage(params: .init(chatId: .chat(userInfo.chatId), text: text))
-                        }
-                    } catch (let botError) {
-                        self?.logger.report(error: botError)
-                    }
-                }
-            }
-        }
-    }
-    
-    func startTriangularArbitragingMonitoring(bot: TGBotPrtcl) {
-        let usersInfoWithTriangularArbitragingMode = UsersInfoProvider.shared.getUsersInfo(selectedMode: .triangularArtibraging)
-        
-        Jobs.add(interval: .seconds(BotMode.triangularArtibraging.jobInterval)) { [weak self] in
-            guard usersInfoWithTriangularArbitragingMode.isEmpty == false else { return }
-            
-            ArbitrageCalculator.shared.getSurfaceResults { surfaceResults, statusText in
-                guard let surfaceResults = surfaceResults else { return }
-
-                let text = surfaceResults
-                    .sorted(by: { $0.profitPercent > $1.profitPercent })
-                    .prefix(10)
-                    .map { $0.description }
-                    .joined(separator: "\n")
-                    .appending(statusText)
-                    .appending("\nАктуально станом на \(Date().readableDescription)")
-                
-                let extraResultsText = surfaceResults
-                    .filter { $0.profitPercent >= 0.3 }
-                    .sorted(by: { $0.profitPercent > $1.profitPercent })
-                    .prefix(10)
-                    .map { $0.description }
-                    .joined(separator: "\n")
-                
-                usersInfoWithTriangularArbitragingMode.forEach { userInfo in
-                    do {
-                        if let triangularArbitragingMessageId = userInfo.triangularArbitragingMessageId {
-                            let editParams: TGEditMessageTextParams = .init(chatId: .chat(userInfo.chatId),
-                                                                            messageId: triangularArbitragingMessageId,
-                                                                            inlineMessageId: nil,
-                                                                            text: text)
-                            _ = try bot.editMessageText(params: editParams)
-                        } else {
-                            _ = try bot.sendMessage(params: .init(chatId: .chat(userInfo.chatId), text: text))
-                        }
-                        if extraResultsText.isEmpty == false {
-                            _ = try bot.sendMessage(params: .init(chatId: .chat(userInfo.chatId), text: extraResultsText))
                         }
                     } catch (let botError) {
                         self?.logger.report(error: botError)
@@ -419,36 +371,6 @@ private extension DefaultBotHandlers {
                                                                         user: user,
                                                                         mode: .arbitraging,
                                                                         arbitragingMessageId: arbitragingMessageId)
-                        })
-                    })
-                }
-            } catch (let botError) {
-                self.logger.report(error: botError)
-            }
-        }
-        bot.connection.dispatcher.add(handler)
-    }
-    
-    // MARK: /start_triangular_arbitraging
-    
-    func commandStartTriangularArbitragingHandler(app: Vapor.Application, bot: TGBotPrtcl) {
-        let handler = TGCommandHandler(commands: [BotMode.triangularArtibraging.command]) { [weak self] update, bot in
-            guard let self = self, let chatId = update.message?.chat.id, let user = update.message?.from else { return }
-            
-            do {
-                if UsersInfoProvider.shared.getUsersInfo(selectedMode: .triangularArtibraging).contains(where: { $0.chatId == chatId }) {
-                    _ = try bot.sendMessage(params: .init(chatId: .chat(chatId), text: "Та все й так пашу. Можешь мене зупинить якшо не нравиться /stop"))
-                } else {
-                    let infoMessage = "Binance Трикутні арбитражні можливості з profit > 0.01 % (оновлення кожні \(Int(BotMode.triangularArtibraging.jobInterval)) секунд):\n"
-                    let explanationMessageFutute = try? bot.sendMessage(params: .init(chatId: .chat(chatId), text: infoMessage))
-                    explanationMessageFutute?.whenComplete({ _ in
-                        let editMessageFuture = try? bot.sendMessage(params: .init(chatId: .chat(chatId), text: "Оновлюю.."))
-                        editMessageFuture?.whenComplete({ result in
-                            let triangularArbitragingMessageId = try? result.get().messageId
-                            UsersInfoProvider.shared.handleModeSelected(chatId: chatId,
-                                                                        user: user,
-                                                                        mode: .triangularArtibraging,
-                                                                        triangularArbitragingMessageId: triangularArbitragingMessageId)
                         })
                     })
                 }
