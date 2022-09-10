@@ -14,6 +14,7 @@ public func configure(_ app: Application) throws {
     TGBot.configure(connection: connection, botId: String.readToken(from: "token"), vaporClient: app.client)
     try TGBot.shared.start()
     TGBot.log.logLevel = .error
+    app.http.server.configuration.port = 1337
     
     DefaultBotHandlers.shared.addHandlers(app: app, bot: TGBot.shared)
     
