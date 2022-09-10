@@ -3,7 +3,8 @@ import telegram_vapor_bot
 import Logging
 
 public func configure(_ app: Application) throws {
-
+    
+    app.http.server.configuration.port = 1337
     LoggingSystem.bootstrap { label in
         MultiplexLogHandler([
             StreamLogHandler.standardOutput(label: label)
@@ -14,7 +15,6 @@ public func configure(_ app: Application) throws {
     TGBot.configure(connection: connection, botId: String.readToken(from: "token"), vaporClient: app.client)
     try TGBot.shared.start()
     TGBot.log.logLevel = .error
-    app.http.server.configuration.port = 1337
     
     DefaultBotHandlers.shared.addHandlers(app: app, bot: TGBot.shared)
     
